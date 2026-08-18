@@ -206,6 +206,12 @@
   .btn-ghost{border-color:var(--line); color:var(--text-dim); background:var(--panel);}
   .btn-ghost:hover{border-color:var(--highlight); color:var(--highlight);}
   .magnetic{will-change:transform;}
+  /* no hover on touch, so give taps a quick press-down instead */
+  @media (hover:none){
+    .btn:active, .clink:active{transform:scale(0.96); transition:transform .1s ease;}
+    .btn-ghost:active{border-color:var(--highlight); color:var(--highlight);}
+    .clink:active{border-color:var(--highlight); color:var(--highlight);}
+  }
 
   /* --- portrait: cutout floating on glow --- */
   .portal{position:relative; width:100%; max-width:340px; margin:0 auto; display:flex; flex-direction:column; align-items:center;}
@@ -271,10 +277,12 @@
   @media (max-width:860px){ .about-grid{grid-template-columns:1fr; gap:40px;} .facts{grid-template-columns:1fr 1fr;} }
 
   /* ---------- TILT CARD base ---------- */
-  .tilt{transform-style:preserve-3d; transition:transform .12s ease-out; position:relative; overflow:hidden;}
+  .tilt{transform-style:preserve-3d; transition:transform .12s ease-out; position:relative; overflow:hidden; touch-action:pan-y;}
   .tilt .glare{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .2s ease;
     background:radial-gradient(circle at var(--gx,50%) var(--gy,50%), rgba(255,179,0,0.18), transparent 55%);}
   .tilt:hover .glare{opacity:1;}
+  /* touch has no hover state, so tapping/dragging shows the glare directly */
+  @media (hover:none){ .tilt:active .glare{opacity:1;} }
 
   /* ---------- SKILLS ---------- */
   .skill-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:16px;}
@@ -659,35 +667,49 @@
     });
   }
 
-  /* magnetic buttons */
+  /* magnetic buttons -- true "follow the pointer" only makes sense with a
+     hovering mouse, but touch still gets a tactile press response (see the
+     .magnetic:active / .tilt:active CSS) so nothing feels dead on mobile. */
   if(isFinePointer){
     document.querySelectorAll('.magnetic').forEach(el => {
-      el.addEventListener('mousemove', (e) => {
+      el.addEventListener('pointermove', (e) => {
+        if(e.pointerType !== 'mouse') return;
         const r = el.getBoundingClientRect();
         const x = e.clientX - r.left - r.width/2;
         const y = e.clientY - r.top - r.height/2;
         el.style.transform = `translate(${x*0.18}px, ${y*0.28}px)`;
       });
-      el.addEventListener('mouseleave', () => { el.style.transform = 'translate(0,0)'; });
+      el.addEventListener('pointerleave', () => { el.style.transform = 'translate(0,0)'; });
     });
   }
 
-  /* tilt cards */
-  if(isFinePointer){
-    document.querySelectorAll('.tilt').forEach(card => {
-      card.addEventListener('mousemove', (e) => {
-        const r = card.getBoundingClientRect();
-        const px = (e.clientX - r.left) / r.width;
-        const py = (e.clientY - r.top) / r.height;
-        const rotX = (py - 0.5) * -8;
-        const rotY = (px - 0.5) * 8;
-        card.style.transform = `perspective(700px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(0)`;
-        card.style.setProperty('--gx', (px*100)+'%');
-        card.style.setProperty('--gy', (py*100)+'%');
-      });
-      card.addEventListener('mouseleave', () => { card.style.transform = 'perspective(700px) rotateX(0) rotateY(0)'; });
+  /* tilt cards -- Pointer Events unify mouse hover-drag and touch-drag, so a
+     finger dragged across a card tilts it and moves the glare exactly like a
+     mouse would. A plain tap also fires a quick centered pulse so cards never
+     feel inert on a phone. */
+  document.querySelectorAll('.tilt').forEach(card => {
+    function applyTilt(clientX, clientY){
+      const r = card.getBoundingClientRect();
+      const px = (clientX - r.left) / r.width;
+      const py = (clientY - r.top) / r.height;
+      const rotX = (py - 0.5) * -8;
+      const rotY = (px - 0.5) * 8;
+      card.style.transform = `perspective(700px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(0)`;
+      card.style.setProperty('--gx', (px*100)+'%');
+      card.style.setProperty('--gy', (py*100)+'%');
+    }
+    function resetTilt(){
+      card.style.transform = 'perspective(700px) rotateX(0) rotateY(0)';
+    }
+    card.addEventListener('pointerdown', (e) => applyTilt(e.clientX, e.clientY));
+    card.addEventListener('pointermove', (e) => {
+      if(e.pointerType === 'touch' && e.buttons === 0 && e.pressure === 0) return;
+      applyTilt(e.clientX, e.clientY);
     });
-  }
+    card.addEventListener('pointerup', resetTilt);
+    card.addEventListener('pointercancel', resetTilt);
+    card.addEventListener('pointerleave', (e) => { if(e.pointerType === 'mouse') resetTilt(); });
+  });
 
   /* typewriter line */
   const lines = [
@@ -757,11 +779,15 @@
   }
   resize(); initParticles();
   window.addEventListener('resize', () => { resize(); initParticles(); });
-  heroEl.addEventListener('mousemove', (e) => {
+  /* Pointer Events cover both mouse hover and finger drags in one listener,
+     so the particle network reacts to a touch-drag across the hero exactly
+     like it reacts to a mouse. */
+  heroEl.addEventListener('pointermove', (e) => {
     const r = heroEl.getBoundingClientRect();
     mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
   });
-  heroEl.addEventListener('mouseleave', () => { mouse.x = null; mouse.y = null; });
+  heroEl.addEventListener('pointerleave', () => { mouse.x = null; mouse.y = null; });
+  heroEl.addEventListener('pointercancel', () => { mouse.x = null; mouse.y = null; });
 
   function drawParticles(){
     ctx.clearRect(0,0,W,H);

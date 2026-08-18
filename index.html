@@ -135,18 +135,26 @@
   .burger{display:none; background:none; border:none; color:var(--white); font-size:24px; cursor:pointer; line-height:1; padding:4px; flex-shrink:0;}
 
   @media (max-width:900px){
+    /* backdrop-filter on an ancestor breaks nested position:fixed children on
+       several mobile browsers (they stop tracking the viewport and can render
+       translucent) -- so the blur is dropped here in favour of a solid header. */
+    header.nav{backdrop-filter:none; -webkit-backdrop-filter:none; background:#000;}
     .nav-inner{padding:14px 20px;}
     .brand-name{font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44vw;}
     nav.links{
       position:fixed; top:0; left:0; right:0; bottom:0;
       background:#050505; flex-direction:column; padding:100px 32px 36px; gap:22px;
-      transform:translateY(-100%); transition:transform .35s ease; z-index:99;
+      transform:translateY(-100%); transition:transform .35s ease; z-index:9999;
       pointer-events:none; visibility:hidden;
+      -webkit-transform:translateY(-100%);
     }
-    nav.links.open{transform:translateY(0); pointer-events:auto; visibility:visible;}
+    nav.links.open{
+      transform:translateY(0); -webkit-transform:translateY(0);
+      pointer-events:auto; visibility:visible;
+    }
     nav.links a{font-size:18px;}
     .nav-cta{display:none;}
-    .burger{display:block;}
+    .burger{display:block; position:relative; z-index:10000;}
   }
   @media (max-width:420px){
     .brand-name{max-width:36vw; font-size:10.5px;}
